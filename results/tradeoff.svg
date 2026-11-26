@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 500" width="760" height="500" role="img" aria-labelledby="t d">
+<title id="t">Paraphrases reused vs. hard negatives accepted</title>
+<desc id="d">The threshold-only line never gets near the top-left corner: every threshold that reuses paraphrases also accepts most hard negatives. Markers show threshold plus an LLM judge.</desc>
+<style>
+  svg { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .surface { fill: #ffffff; } .text { fill: #191919; } .muted { fill: #666666; }
+  .grid { stroke: #e6e6e6; stroke-width: 1; } .axis { stroke: #b3b3b3; stroke-width: 1; }
+  .l1 { stroke: #257de0; fill: none; } .s1 { fill: #257de0; } .s2 { fill: #f47230; } .s3 { fill: #00b894; } .s4 { fill: #f2a600; }
+  .s5 { fill: #ee7fac; } .s6 { fill: #008a17; } .ring { stroke: #ffffff; stroke-width: 2; }
+  @media (prefers-color-scheme: dark) {
+    .surface { fill: #191919; } .text { fill: #efefef; } .muted { fill: #9c9c9c; }
+    .grid { stroke: #333333; } .axis { stroke: #555555; }
+    .l1 { stroke: #338ced; } .s1 { fill: #338ced; } .s2 { fill: #e76624; } .s3 { fill: #00a888; } .s4 { fill: #d28e05; }
+    .s5 { fill: #e24d8b; } .s6 { fill: #0aac23; } .ring { stroke: #191919; }
+  }
+</style>
+<rect class="surface" width="760" height="500" rx="8"/>
+<text class="text" x="72" y="28" font-size="16" font-weight="600">Reusing paraphrases without serving wrong answers</text>
+<text class="muted" x="72" y="48" font-size="12">nomic-embed-text, no prefix. Ideal cache: top-left corner.</text>
+<line class="grid" x1="72.0" x2="550.0" y1="436.0" y2="436.0"/>
+<line class="grid" x1="72.0" x2="72.0" y1="436.0" y2="64.0"/>
+<text class="muted" x="64.0" y="440.0" font-size="11" text-anchor="end">0%</text>
+<text class="muted" x="72.0" y="454.0" font-size="11" text-anchor="middle">0%</text>
+<line class="grid" x1="72.0" x2="550.0" y1="343.0" y2="343.0"/>
+<line class="grid" x1="191.5" x2="191.5" y1="436.0" y2="64.0"/>
+<text class="muted" x="64.0" y="347.0" font-size="11" text-anchor="end">25%</text>
+<text class="muted" x="191.5" y="454.0" font-size="11" text-anchor="middle">25%</text>
+<line class="grid" x1="72.0" x2="550.0" y1="250.0" y2="250.0"/>
+<line class="grid" x1="311.0" x2="311.0" y1="436.0" y2="64.0"/>
+<text class="muted" x="64.0" y="254.0" font-size="11" text-anchor="end">50%</text>
+<text class="muted" x="311.0" y="454.0" font-size="11" text-anchor="middle">50%</text>
+<line class="grid" x1="72.0" x2="550.0" y1="157.0" y2="157.0"/>
+<line class="grid" x1="430.5" x2="430.5" y1="436.0" y2="64.0"/>
+<text class="muted" x="64.0" y="161.0" font-size="11" text-anchor="end">75%</text>
+<text class="muted" x="430.5" y="454.0" font-size="11" text-anchor="middle">75%</text>
+<line class="grid" x1="72.0" x2="550.0" y1="64.0" y2="64.0"/>
+<line class="grid" x1="550.0" x2="550.0" y1="436.0" y2="64.0"/>
+<text class="muted" x="64.0" y="68.0" font-size="11" text-anchor="end">100%</text>
+<text class="muted" x="550.0" y="454.0" font-size="11" text-anchor="middle">100%</text>
+<line class="axis" x1="72.0" x2="550.0" y1="436.0" y2="436.0"/>
+<text class="muted" x="311.0" y="482" font-size="12" text-anchor="middle">Hard negatives accepted (wrong answers served)</text>
+<text class="muted" transform="translate(18 250.0) rotate(-90)" font-size="12" text-anchor="middle">Paraphrases reused (savings)</text>
+<polyline class="l1" stroke-width="2" stroke-linejoin="round" points="550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,64.0 550.0,84.7 550.0,84.7 550.0,105.3 550.0,105.3 550.0,105.3 550.0,146.7 550.0,146.7 550.0,167.3 550.0,167.3 550.0,188.0 550.0,188.0 550.0,208.7 550.0,208.7 550.0,229.3 534.1,250.0 502.2,312.0 486.3,353.3 438.5,374.0 438.5,394.7 422.5,394.7 422.5,415.3 406.6,436.0 358.8,436.0 358.8,436.0 342.9,436.0 342.9,436.0 295.1,436.0 279.1,436.0 231.3,436.0 199.5,436.0 199.5,436.0 199.5,436.0 183.5,436.0 151.7,436.0 151.7,436.0 135.7,436.0 119.8,436.0 119.8,436.0"/>
+<circle class="s1 ring" cx="550.0" cy="64.0" r="4"/>
+<text class="muted" x="542.0" y="56.0" font-size="11" text-anchor="end">t=0.60</text>
+<circle class="s1 ring" cx="550.0" cy="229.3" r="4"/>
+<text class="muted" x="542.0" y="221.3" font-size="11" text-anchor="end">t=0.75</text>
+<circle class="s1 ring" cx="358.8" cy="436.0" r="4"/>
+<text class="muted" x="350.8" y="428.0" font-size="11" text-anchor="end">t=0.85</text>
+<circle class="s2 ring" cx="72.0" cy="126.0" r="5.5"/>
+<rect class="s2 ring" x="78.0" y="121.0" width="10" height="10" rx="2"/>
+<circle class="s3 ring" cx="72.0" cy="436.0" r="5.5"/>
+<rect class="s3 ring" x="78.0" y="431.0" width="10" height="10" rx="2"/>
+<circle class="s4 ring" cx="87.9" cy="64.0" r="5.5"/>
+<rect class="s4 ring" x="67.0" y="59.0" width="10" height="10" rx="2"/>
+<line class="l1" x1="574" x2="592" y1="68" y2="68" stroke-width="2"/>
+<text class="text" x="600" y="72" font-size="12">Threshold only</text>
+<text class="muted" x="574" y="98" font-size="11">Threshold 0.60 + judge:</text>
+<circle class="s2" cx="583" cy="114" r="5.5"/>
+<text class="text" x="600" y="118" font-size="12">qwen2.5:3b</text>
+<circle class="s3" cx="583" cy="134" r="5.5"/>
+<text class="text" x="600" y="138" font-size="12">llama3.2:3b</text>
+<circle class="s4" cx="583" cy="154" r="5.5"/>
+<text class="text" x="600" y="158" font-size="12">qwen2.5:7b</text>
+<circle class="muted" cx="583" cy="180" r="5"/>
+<text class="text" x="600" y="184" font-size="12">plain prompt</text>
+<rect class="muted" x="578" y="195" width="10" height="10" rx="2"/>
+<text class="text" x="600" y="204" font-size="12">guided prompt</text>
+</svg>
