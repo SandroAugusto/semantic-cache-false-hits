@@ -71,7 +71,13 @@ npm run chart      # writes results/tradeoff.svg
 
 `npm run verify` accepts `--judges`, `--prompts` (`plain`, `guided`), `--thresholds` and `--prefix`.
 
-The workflow in `.github/workflows/run-experiment.yml` runs everything on GitHub Actions and commits the results whenever the data or the code changes.
+Track A (downloads the dataset at run time):
+
+```bash
+npm run track-a    # options: --sample, --judge, --prompt, --judge-thresholds, --time-budget
+```
+
+Two GitHub Actions workflows run everything and commit the results: `run-experiment.yml` (Experiments 1 and 2, when `data/pairs.jsonl` changes) and `track-a.yml` (Track A, on demand).
 
 ```bash
 npm test           # metric tests
@@ -137,10 +143,34 @@ What it costs and what it does not prove:
 - **One order per pair.** Each pair was judged as A then B only; the judge may not be symmetric.
 - **The chart nudges overlapping markers sideways** so all of them stay visible; read exact values from the table.
 
+### Track A: real patient questions against a whole cache
+
+Experiments 1 and 2 used pairs I wrote by changing one word. Track A uses real patient questions from [Medical Question Pairs](https://github.com/curai/medical-question-pair-dataset) (McCreery et al., KDD 2020): 1,524 questions, each with a doctor-written **rewrite** that keeps the intent and a **related** question written with similar keywords whose answer would be wrong. The dataset has no license file, so it is downloaded at run time and never committed; the report shows aggregates only.
+
+All 1,524 original questions go into the cache. 150 rewrites and 150 related questions (seed 42) then search the **entire** cache, as they would in production (`npm run track-a`, report in [`results/mqp/report.md`](results/mqp/report.md)).
+
+**Real questions separate better than my hand-written pairs, but not enough.** Rewrites average 0.858 similarity to their original, related questions 0.708, and only 4.7% of related questions are closer than the rewrite. Still, at 0.75 the cache serves a wrong answer to 42% of related questions, and keeping related questions below 1% (pair level) takes a threshold of 0.907, which reuses only 29.5% of rewrites.
+
+**The whole cache adds errors of its own.** Even with no tricky traffic, 3.3% of rewrites matched a *different* cached question at thresholds up to 0.70.
+
+**The judge is much weaker on real questions.** qwen2.5:3b let through 7.3% of related questions (11 of 150), against 0 of 30 in Experiment 2, and rejected a third of valid rewrites (64% reused, against 97% available). Some of those rejections may be right: doctors were told they could change details that would not alter their answer, such as an age.
+
+**Against a higher threshold, the judge is not a clear win.** Wrong answers / answers saved per 1,000 queries that have a close question in the cache, by the share of related questions in that traffic:
+
+| Policy | 0% related | 10% related | 25% related | 50% related |
+|---|---:|---:|---:|---:|
+| threshold 0.80 | 13 / 773 | 28 / 696 | 50 / 580 | 87 / 387 |
+| threshold 0.85 | 0 / 540 | 5 / 486 | 13 / 405 | 27 / 270 |
+| threshold 0.60 + qwen2.5:3b judge | 0 / 640 | 7 / 576 | 18 / 480 | 37 / 320 |
+
+The judge saves more than the 0.85 threshold but also serves more wrong answers, and adds about 2.2 s per query on these runners: it moves along roughly the same trade-off instead of escaping it. The 0.85 row is computed from the rates in the report. Passing the top 3 neighbors to the judge instead of the top 1 added nothing (the right question was already the nearest neighbor 96.7% of the time) and slightly more wrong answers.
+
+**So Experiment 2 overstated the judge.** Hand-written, one-word hard negatives are easy for an LLM to spot; real near-misses are not. Only one judge (qwen2.5:3b) and one prompt were tested here, because CPU runners make each call slow; a larger judge may do better.
+
 ## Next steps
 
-1. **Search against the whole cache**, not just pairs, to measure the error rate under realistic conditions.
-2. **A larger, less hand-crafted dataset**, ideally built from real user questions, to estimate how often hard negatives actually occur.
+1. **A larger judge on Track A** (qwen2.5:7b): the workflow keeps verdicts in the Actions cache and stops on a time budget, so slow runs can be split across several free runs.
+2. **Production traffic**, the only way to know how often related-but-different questions actually arrive.
 3. **Judge both orders** of each pair and measure symmetry.
 4. **A cost model:** judge latency and price against the generation it saves, on CPU and GPU.
 5. **More embedding models and languages**, including multilingual ones.
