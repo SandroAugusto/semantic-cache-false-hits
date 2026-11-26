@@ -6,6 +6,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { parseCsvRecords as parseCsv } from './csv.ts';
 
 const { values } = parseArgs({
   options: {
@@ -14,25 +15,6 @@ const { values } = parseArgs({
     threshold: { type: 'string', default: '0.60' },
   },
 });
-
-function parseCsv(text: string): Record<string, string>[] {
-  const rows = text.trim().split('\n').map((line) => {
-    const cells: string[] = [];
-    let cell = '';
-    let quoted = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (quoted && ch === '"' && line[i + 1] === '"') { cell += '"'; i++; }
-      else if (ch === '"') quoted = !quoted;
-      else if (ch === ',' && !quoted) { cells.push(cell); cell = ''; }
-      else cell += ch;
-    }
-    cells.push(cell);
-    return cells;
-  });
-  const [header, ...body] = rows;
-  return body.map((cells) => Object.fromEntries(header.map((h, i) => [h, cells[i]])));
-}
 
 const sweep = parseCsv(await readFile(join(values.out!, values.sweep!, 'sweep.csv'), 'utf8'));
 const pipeline = parseCsv(await readFile(join(values.out!, 'verification', 'pipeline.csv'), 'utf8')).filter(

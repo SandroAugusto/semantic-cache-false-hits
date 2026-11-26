@@ -5,9 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'data/**'
-      - 'src/**'
-      - '.github/workflows/run-experiment.yml'
+      - 'data/pairs.jsonl'
 
 permissions:
   contents: write
@@ -49,6 +47,7 @@ jobs:
         with:
           name: results
           path: results/
+          retention-days: 7
 
       - name: Commit results
         run: |

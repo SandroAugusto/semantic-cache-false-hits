@@ -15,7 +15,14 @@ const GUIDANCE =
   'different, even when most words are shared: a negation, who does what to whom, a different ' +
   'number, a different named entity, or a narrower or wider scope.';
 
+/** Same task as "plain", worded for patients' health questions (used with the MQP dataset). */
+const HEALTH_TASK =
+  'You check whether a cached answer can be reused. You receive two questions a patient might ask ' +
+  'a doctor. Decide whether one single correct answer would fully and correctly answer both ' +
+  'questions. Reply only with JSON: {"same": true} or {"same": false}.';
+
 export const PROMPTS: Record<string, string> = {
   plain: TASK,
   guided: TASK + GUIDANCE,
+  health: HEALTH_TASK,
 };
