@@ -185,7 +185,7 @@ function simulate(policy: string, threshold: number, useJudge: boolean, depth: n
 const outcomes: Outcome[] = thresholds.map((t) => simulate('threshold only (top-1)', t, false, 1));
 for (const t of judgeThresholds) {
   outcomes.push(simulate(`threshold + judge (top-1)`, t, true, 1));
-  outcomes.push(simulate(`threshold + judge (top-${k})`, t, true, k));
+  if (k > 1) outcomes.push(simulate(`threshold + judge (top-${k})`, t, true, k));
 }
 
 const latencies = [...verdicts.values()].map((v) => v.latencyMs);
