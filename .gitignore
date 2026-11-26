@@ -1,3 +1,4 @@
 node_modules/
 results/.embeddings-cache.json
 results/.judge-cache.json
+results/.annotation/
