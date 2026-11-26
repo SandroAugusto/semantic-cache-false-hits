@@ -1,0 +1,58 @@
+name: Track A (MQP, whole cache)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/cache-sim.ts'
+      - 'src/mqp.ts'
+      - '.github/workflows/track-a.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: track-a
+  cancel-in-progress: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama and pull models
+        run: |
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:11434/api/version && break; sleep 1; done
+          ollama pull nomic-embed-text
+          ollama pull qwen2.5:3b
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run track-a
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: track-a-results
+          path: results/mqp/
+          retention-days: 7
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/mqp/
+          git diff --cached --quiet && exit 0
+          git commit -m "Update Track A results [skip ci]"
+          git pull --rebase
+          git push

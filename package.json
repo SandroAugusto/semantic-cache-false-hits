@@ -13,7 +13,8 @@
     "test": "node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc -p .",
     "verify": "node src/verify.ts",
-    "chart": "node src/chart.ts"
+    "chart": "node src/chart.ts",
+    "track-a": "node src/cache-sim.ts"
   },
   "license": "MIT",
   "devDependencies": {
