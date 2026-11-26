@@ -25,22 +25,22 @@ Embeddings: nomic-embed-text | prefix: none. Judge: qwen2.5:7b (health).
 
 ## Part 2: whole cache
 
-All 1524 originals are stored. 220 queries (110 rewrites and 110 related questions, sampled with seed 42) each search the entire cache for their top 1 neighbors. The rewrite's own original is the nearest neighbor in **95.5%** of cases.
+All 1524 originals are stored. 300 queries (150 rewrites and 150 related questions, sampled with seed 42) each search the entire cache for their top 1 neighbors. The rewrite's own original is the nearest neighbor in **96.7%** of cases.
 
 | Policy | Threshold | Rewrites: right answer | Rewrites: wrong answer | Rewrites: miss | Related: wrong answer | Judge calls per query |
 |---|---:|---:|---:|---:|---:|---:|
-| threshold only (top-1) | 0.55 | 95.5% | 4.5% | 0.0% | 100.0% | - |
-| threshold only (top-1) | 0.60 | 95.5% | 4.5% | 0.0% | 100.0% | - |
-| threshold only (top-1) | 0.65 | 95.5% | 4.5% | 0.0% | 93.6% | - |
-| threshold only (top-1) | 0.70 | 95.5% | 4.5% | 0.0% | 77.3% | - |
-| threshold only (top-1) | 0.75 | 90.9% | 2.7% | 6.4% | 40.0% | - |
-| threshold only (top-1) | 0.80 | 74.5% | 1.8% | 23.6% | 13.6% | - |
-| threshold only (top-1) | 0.85 | 50.9% | 0.0% | 49.1% | 3.6% | - |
-| threshold only (top-1) | 0.90 | 22.7% | 0.0% | 77.3% | 1.8% | - |
-| threshold + judge (top-1) | 0.60 | 85.5% | 1.8% | 12.7% | 13.6% | 1.00 |
-| threshold + judge (top-1) | 0.60 | 85.5% | 1.8% | 12.7% | 13.6% | 1.00 |
-| threshold + judge (top-1) | 0.70 | 85.5% | 1.8% | 12.7% | 13.6% | 0.89 |
-| threshold + judge (top-1) | 0.70 | 85.5% | 1.8% | 12.7% | 13.6% | 0.89 |
+| threshold only (top-1) | 0.55 | 96.7% | 3.3% | 0.0% | 100.0% | - |
+| threshold only (top-1) | 0.60 | 96.7% | 3.3% | 0.0% | 100.0% | - |
+| threshold only (top-1) | 0.65 | 96.7% | 3.3% | 0.0% | 93.3% | - |
+| threshold only (top-1) | 0.70 | 96.0% | 3.3% | 0.7% | 77.3% | - |
+| threshold only (top-1) | 0.75 | 92.0% | 2.0% | 6.0% | 42.0% | - |
+| threshold only (top-1) | 0.80 | 77.3% | 1.3% | 21.3% | 16.0% | - |
+| threshold only (top-1) | 0.85 | 54.0% | 0.0% | 46.0% | 5.3% | - |
+| threshold only (top-1) | 0.90 | 24.7% | 0.0% | 75.3% | 2.7% | - |
+| threshold + judge (top-1) | 0.60 | 86.0% | 1.3% | 12.7% | 16.0% | 1.00 |
+| threshold + judge (top-1) | 0.60 | 86.0% | 1.3% | 12.7% | 16.0% | 1.00 |
+| threshold + judge (top-1) | 0.70 | 85.3% | 1.3% | 13.3% | 16.0% | 0.88 |
+| threshold + judge (top-1) | 0.70 | 85.3% | 1.3% | 13.3% | 16.0% | 0.88 |
 
 ## Wrong answers per 1,000 queries, by traffic mix
 
@@ -48,22 +48,21 @@ Real traffic mixes rewrites of cached questions with related-but-different ones.
 
 | Policy | Threshold | 0% related: wrong / saved | 10% related: wrong / saved | 25% related: wrong / saved | 50% related: wrong / saved |
 |---|---:|---:|---:|---:|---:|
-| threshold only (top-1) | 0.60 | 45 / 955 | 141 / 859 | 284 / 716 | 523 / 477 |
-| threshold only (top-1) | 0.70 | 45 / 955 | 118 / 859 | 227 / 716 | 409 / 477 |
-| threshold only (top-1) | 0.80 | 18 / 745 | 30 / 671 | 48 / 559 | 77 / 373 |
-| threshold only (top-1) | 0.85 | 0 / 509 | 4 / 458 | 9 / 382 | 18 / 255 |
-| threshold + judge (top-1) | 0.60 | 18 / 855 | 30 / 769 | 48 / 641 | 77 / 427 |
-| threshold + judge (top-1) | 0.60 | 18 / 855 | 30 / 769 | 48 / 641 | 77 / 427 |
-| threshold + judge (top-1) | 0.70 | 18 / 855 | 30 / 769 | 48 / 641 | 77 / 427 |
-| threshold + judge (top-1) | 0.70 | 18 / 855 | 30 / 769 | 48 / 641 | 77 / 427 |
+| threshold only (top-1) | 0.60 | 33 / 967 | 130 / 870 | 275 / 725 | 517 / 483 |
+| threshold only (top-1) | 0.70 | 33 / 960 | 107 / 864 | 218 / 720 | 403 / 480 |
+| threshold only (top-1) | 0.80 | 13 / 773 | 28 / 696 | 50 / 580 | 87 / 387 |
+| threshold only (top-1) | 0.85 | 0 / 540 | 5 / 486 | 13 / 405 | 27 / 270 |
+| threshold + judge (top-1) | 0.60 | 13 / 860 | 28 / 774 | 50 / 645 | 87 / 430 |
+| threshold + judge (top-1) | 0.60 | 13 / 860 | 28 / 774 | 50 / 645 | 87 / 430 |
+| threshold + judge (top-1) | 0.70 | 13 / 853 | 28 / 768 | 50 / 640 | 87 / 427 |
+| threshold + judge (top-1) | 0.70 | 13 / 853 | 28 / 768 | 50 / 640 | 87 / 427 |
 
 ## Judge cost
 
-220 judge calls, 0 invalid replies. Latency on this runner: mean 8589 ms, p95 12670 ms.
+300 judge calls, 0 invalid replies. Latency on this runner: mean 9169 ms, p95 13935 ms.
 
 ## Caveats
 
 - The related questions were written on purpose to share keywords with the original: they are realistic in wording, not in frequency.
 - Rewrites may change details the doctor judged irrelevant (for example, an age). A strict judge can call those "different", which lowers savings but not safety.
-- 110 sampled queries per kind: at 0.9% per query, small rates are noisy.
-- The time budget stopped judging after 110 of the 150 planned pairs; rerunning the workflow resumes from the cached verdicts.
+- 150 sampled queries per kind: at 0.7% per query, small rates are noisy.
