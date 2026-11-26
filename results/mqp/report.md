@@ -51,6 +51,7 @@ Real traffic mixes rewrites of cached questions with related-but-different ones.
 | threshold only (top-1) | 0.60 | 33 / 967 | 130 / 870 | 275 / 725 | 517 / 483 |
 | threshold only (top-1) | 0.70 | 33 / 960 | 107 / 864 | 218 / 720 | 403 / 480 |
 | threshold only (top-1) | 0.80 | 13 / 773 | 28 / 696 | 50 / 580 | 87 / 387 |
+| threshold only (top-1) | 0.85 | 0 / 540 | 5 / 486 | 13 / 405 | 27 / 270 |
 | threshold + judge (top-1) | 0.60 | 0 / 640 | 7 / 576 | 18 / 480 | 37 / 320 |
 | threshold + judge (top-3) | 0.60 | 0 / 640 | 8 / 576 | 20 / 480 | 40 / 320 |
 | threshold + judge (top-1) | 0.70 | 0 / 633 | 7 / 570 | 18 / 475 | 37 / 317 |
