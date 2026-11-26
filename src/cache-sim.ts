@@ -249,7 +249,7 @@ lines.push(
   `| Policy | Threshold | ${mixes.map((m) => `${Math.round(m * 100)}% related: wrong / saved`).join(' | ')} |`,
   `|---|---:|${mixes.map(() => '---:').join('|')}|`,
 );
-for (const o of outcomes.filter((o) => [0.6, 0.7, 0.8].some((t) => Math.abs(t - o.threshold) < 1e-9))) {
+for (const o of outcomes.filter((o) => [0.6, 0.7, 0.8, 0.85].some((t) => Math.abs(t - o.threshold) < 1e-9))) {
   const cells = mixes.map((m) => {
     const wrong = 1000 * ((1 - m) * o.rewriteWrong + m * o.relatedWrong);
     const saved = 1000 * (1 - m) * o.rewriteCorrect;
