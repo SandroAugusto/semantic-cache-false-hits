@@ -11,7 +11,9 @@
     "start": "node src/run.ts",
     "all": "node src/run.ts --prefix none && node src/run.ts --prefix \"search_query: \" && node src/run.ts --prefix \"clustering: \"",
     "test": "node --test \"test/**/*.test.ts\"",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "verify": "node src/verify.ts",
+    "chart": "node src/chart.ts"
   },
   "license": "MIT",
   "devDependencies": {
