@@ -34,6 +34,8 @@ const { values } = parseArgs({
     prefix: { type: 'string', default: 'none' },
     host: { type: 'string', default: process.env.OLLAMA_HOST ?? 'http://localhost:11434' },
     out: { type: 'string', default: 'results' },
+    // Folder under --out for this run's report, so runs with different judges do not overwrite each other.
+    'report-dir': { type: 'string', default: 'mqp' },
   },
 });
 
@@ -275,7 +277,7 @@ if (usedPairs < sampleSize) {
 }
 lines.push('');
 
-const outDir = join(values.out!, 'mqp');
+const outDir = join(values.out!, values['report-dir']!);
 await mkdir(outDir, { recursive: true });
 await writeFile(join(outDir, 'report.md'), lines.join('\n'));
 await writeFile(
