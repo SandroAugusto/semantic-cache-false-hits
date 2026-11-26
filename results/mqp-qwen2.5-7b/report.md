@@ -38,8 +38,6 @@ All 1524 originals are stored. 300 queries (150 rewrites and 150 related questio
 | threshold only (top-1) | 0.85 | 54.0% | 0.0% | 46.0% | 5.3% | - |
 | threshold only (top-1) | 0.90 | 24.7% | 0.0% | 75.3% | 2.7% | - |
 | threshold + judge (top-1) | 0.60 | 86.0% | 1.3% | 12.7% | 16.0% | 1.00 |
-| threshold + judge (top-1) | 0.60 | 86.0% | 1.3% | 12.7% | 16.0% | 1.00 |
-| threshold + judge (top-1) | 0.70 | 85.3% | 1.3% | 13.3% | 16.0% | 0.88 |
 | threshold + judge (top-1) | 0.70 | 85.3% | 1.3% | 13.3% | 16.0% | 0.88 |
 
 ## Wrong answers per 1,000 queries, by traffic mix
@@ -53,8 +51,6 @@ Real traffic mixes rewrites of cached questions with related-but-different ones.
 | threshold only (top-1) | 0.80 | 13 / 773 | 28 / 696 | 50 / 580 | 87 / 387 |
 | threshold only (top-1) | 0.85 | 0 / 540 | 5 / 486 | 13 / 405 | 27 / 270 |
 | threshold + judge (top-1) | 0.60 | 13 / 860 | 28 / 774 | 50 / 645 | 87 / 430 |
-| threshold + judge (top-1) | 0.60 | 13 / 860 | 28 / 774 | 50 / 645 | 87 / 430 |
-| threshold + judge (top-1) | 0.70 | 13 / 853 | 28 / 768 | 50 / 640 | 87 / 427 |
 | threshold + judge (top-1) | 0.70 | 13 / 853 | 28 / 768 | 50 / 640 | 87 / 427 |
 
 ## Judge cost

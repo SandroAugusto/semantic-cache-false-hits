@@ -162,14 +162,17 @@ All 1,524 original questions go into the cache. 150 rewrites and 150 related que
 | threshold 0.80 | 13 / 773 | 28 / 696 | 50 / 580 | 87 / 387 |
 | threshold 0.85 | 0 / 540 | 5 / 486 | 13 / 405 | 27 / 270 |
 | threshold 0.60 + qwen2.5:3b judge | 0 / 640 | 7 / 576 | 18 / 480 | 37 / 320 |
+| threshold 0.60 + qwen2.5:7b judge | 13 / 860 | 28 / 774 | 50 / 645 | 87 / 430 |
 
-The judge saves more than the 0.85 threshold but also serves more wrong answers, and adds about 2.2 s per query on these runners: it moves along roughly the same trade-off instead of escaping it. The 0.85 row is computed from the rates in the report. Passing the top 3 neighbors to the judge instead of the top 1 added nothing (the right question was already the nearest neighbor 96.7% of the time) and slightly more wrong answers.
+The 3B judge saves more than the 0.85 threshold but also serves more wrong answers, and adds about 2.2 s per query on these runners: it moves along roughly the same trade-off instead of escaping it.
 
-**So Experiment 2 overstated the judge.** Hand-written, one-word hard negatives are easy for an LLM to spot; real near-misses are not. Only one judge (qwen2.5:3b) and one prompt were tested here, because CPU runners make each call slow; a larger judge may do better.
+**A bigger judge is more lenient, not more accurate.** qwen2.5:7b reused 86% of rewrites (the 3B judge: 64%) but accepted 16% of related questions (the 3B judge: 7.3%) and served a different cached answer to 1.3% of rewrites. Its wrong-answer counts match the plain 0.80 threshold exactly, with about 11% more answers saved, at 9.2 s per query on CPU (p95 13.9 s). That is a small gain for a large cost, and still worse on errors than the 0.85 threshold. Report: [`results/mqp-qwen2.5-7b/report.md`](results/mqp-qwen2.5-7b/report.md) (top-1 only, since top-3 added nothing for the 3B judge). The 0.85 row is computed from the rates in the report. Passing the top 3 neighbors to the judge instead of the top 1 added nothing (the right question was already the nearest neighbor 96.7% of the time) and slightly more wrong answers.
+
+**So Experiment 2 overstated the judge.** Hand-written, one-word hard negatives are easy for an LLM to spot; real near-misses are not. Two judges and one prompt were tested here, both small enough to run on free CPU runners; a frontier model may do better, at a much higher price per check.
 
 ## Next steps
 
-1. **A larger judge on Track A** (qwen2.5:7b): the workflow keeps verdicts in the Actions cache and stops on a time budget, so slow runs can be split across several free runs.
+1. **Better judges, not bigger ones:** a reranker trained for question equivalence, or a judge prompt that asks what each question needs to know before comparing. The workflow keeps verdicts in the Actions cache and stops on a time budget, so slow runs can be split across several free runs.
 2. **Production traffic**, the only way to know how often related-but-different questions actually arrive.
 3. **Judge both orders** of each pair and measure symmetry.
 4. **A cost model:** judge latency and price against the generation it saves, on CPU and GPU.
