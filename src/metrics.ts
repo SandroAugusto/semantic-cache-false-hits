@@ -22,30 +22,41 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 
 const fraction = (part: number, total: number) => (total === 0 ? 0 : part / total);
 
-/** A pair is a cache hit when its similarity reaches the threshold. */
-export function evaluateThreshold(pairs: ScoredPair[], threshold: number): ThresholdRow {
-  const hit = (p: ScoredPair) => p.similarity >= threshold;
+/**
+ * Scores any cache policy: `isHit` decides, for each pair, whether the cache would
+ * serve the stored answer to the new question.
+ */
+export function evaluatePolicy(
+  pairs: ScoredPair[],
+  isHit: (pair: ScoredPair) => boolean,
+  threshold = Number.NaN,
+): ThresholdRow {
   const same = pairs.filter((p) => p.label === 'same');
   const different = pairs.filter((p) => p.label === 'different');
   const hardNegatives = different.filter((p) => HARD_NEGATIVE_CATEGORIES.includes(p.category));
 
-  const sameHits = same.filter(hit).length;
-  const falseHits = different.filter(hit).length;
+  const sameHits = same.filter(isHit).length;
+  const falseHits = different.filter(isHit).length;
 
   const falseHitRateByCategory: Record<string, number> = {};
   for (const category of new Set(different.map((p) => p.category))) {
     const ofCategory = different.filter((p) => p.category === category);
-    falseHitRateByCategory[category] = fraction(ofCategory.filter(hit).length, ofCategory.length);
+    falseHitRateByCategory[category] = fraction(ofCategory.filter(isHit).length, ofCategory.length);
   }
 
   return {
     threshold,
     hitRate: fraction(sameHits, same.length),
     falseHitRate: fraction(falseHits, different.length),
-    hardNegativeFalseHitRate: fraction(hardNegatives.filter(hit).length, hardNegatives.length),
+    hardNegativeFalseHitRate: fraction(hardNegatives.filter(isHit).length, hardNegatives.length),
     precision: sameHits + falseHits === 0 ? 1 : sameHits / (sameHits + falseHits),
     falseHitRateByCategory,
   };
+}
+
+/** A pair is a cache hit when its similarity reaches the threshold. */
+export function evaluateThreshold(pairs: ScoredPair[], threshold: number): ThresholdRow {
+  return evaluatePolicy(pairs, (p) => p.similarity >= threshold, threshold);
 }
 
 export function sweepThresholds(pairs: ScoredPair[], from = 0.5, to = 0.99, step = 0.01): ThresholdRow[] {
@@ -91,4 +102,12 @@ export function statsByCategory(pairs: ScoredPair[]): CategoryStats[] {
       max: Math.max(...values),
     };
   });
+}
+
+/** Nearest-rank percentile, p in [0, 100]. */
+export function percentile(values: number[], p: number): number {
+  if (values.length === 0) return Number.NaN;
+  const sorted = [...values].sort((x, y) => x - y);
+  const rank = Math.ceil((p / 100) * sorted.length);
+  return sorted[Math.min(sorted.length, Math.max(1, rank)) - 1];
 }

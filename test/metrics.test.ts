@@ -70,3 +70,19 @@ test('safe threshold: none exists when a hard negative has similarity 1', () => 
   const safe = safeThreshold([...sample, pair('h3', 'direction', 1)])!;
   assert.equal(safe.threshold, null);
 });
+
+test('policy: threshold + judge only hits when both agree', async () => {
+  const { evaluatePolicy } = await import('../src/metrics.ts');
+  const judgeSaysSame = new Set(['p1', 'p3', 'h1']);
+  const row = evaluatePolicy(sample, (p) => p.similarity >= 0.75 && judgeSaysSame.has(p.id), 0.75);
+  assert.equal(row.hitRate, 1 / 3); // p1 only: p3 is below the threshold, p2 rejected by the judge
+  assert.equal(row.hardNegativeFalseHitRate, 1 / 2); // h1 passes both
+  assert.equal(row.precision, 1 / 2);
+});
+
+test('percentile: nearest rank', async () => {
+  const { percentile } = await import('../src/metrics.ts');
+  assert.equal(percentile([5, 1, 3, 2, 4], 50), 3);
+  assert.equal(percentile([5, 1, 3, 2, 4], 95), 5);
+  assert.equal(percentile([7], 95), 7);
+});
