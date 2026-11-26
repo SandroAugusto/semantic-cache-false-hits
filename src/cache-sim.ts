@@ -20,7 +20,7 @@ import { PROMPTS } from './prompts.ts';
 const { values } = parseArgs({
   options: {
     data: { type: 'string', default: MQP_URL },
-    sample: { type: 'string', default: '200' },
+    sample: { type: 'string', default: '150' },
     seed: { type: 'string', default: '42' },
     k: { type: 'string', default: '3' },
     thresholds: { type: 'string', default: '0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9' },
@@ -28,6 +28,8 @@ const { values } = parseArgs({
     judge: { type: 'string', default: 'qwen2.5:3b' },
     prompt: { type: 'string', default: 'health' },
     'max-judge-calls': { type: 'string', default: '1500' },
+    // Stop judging after this many minutes and report on the queries finished so far.
+    'time-budget': { type: 'string', default: '35' },
     'embed-model': { type: 'string', default: 'nomic-embed-text' },
     prefix: { type: 'string', default: 'none' },
     host: { type: 'string', default: process.env.OLLAMA_HOST ?? 'http://localhost:11434' },
@@ -118,14 +120,25 @@ const judge = new OllamaJudge({
   cachePath: join(values.out!, '.judge-cache.json'),
 });
 const verdicts = new Map<string, Verdict>();
+const budgetMs = Number(values['time-budget']) * 60_000;
+const judgingStarted = Date.now();
 let done = 0;
 for (const q of queries) {
+  // Queries come in (rewrite, related) pairs; only stop between pairs so the sample stays balanced.
+  if (done % 2 === 0 && Date.now() - judgingStarted > budgetMs) {
+    console.log(`  time budget reached after ${done} queries; reporting on those.`);
+    break;
+  }
   for (const c of q.top.filter((c) => c.similarity >= lowestJudgeThreshold)) {
     // The new question first, the cached one second, as a real cache would ask.
     verdicts.set(`${q.kind}:${q.itemId}:${c.id}`, await judge.judge(q.text, items[c.id].original));
   }
   if (++done % 50 === 0) console.log(`  judged queries: ${done}/${queries.length}`);
 }
+// Verdicts are cached on disk, so a later run resumes where this one stopped.
+const usedQueries = queries.slice(0, done);
+const usedPairs = usedQueries.length / 2;
+if (usedPairs === 0) throw new Error('No queries were judged within the time budget.');
 
 interface Outcome {
   policy: string;
@@ -142,7 +155,7 @@ function simulate(policy: string, threshold: number, useJudge: boolean, depth: n
   let rewriteWrong = 0;
   let relatedWrong = 0;
   let calls = 0;
-  for (const q of queries) {
+  for (const q of usedQueries) {
     let served: number | null = null;
     for (const c of q.top.slice(0, depth)) {
       if (c.similarity < threshold) break; // Sorted: nothing further down passes either.
@@ -155,7 +168,7 @@ function simulate(policy: string, threshold: number, useJudge: boolean, depth: n
     else if (served === q.itemId) rewriteCorrect++;
     else rewriteWrong++;
   }
-  const rewrites = queries.length / 2;
+  const rewrites = usedPairs;
   return {
     policy,
     threshold,
@@ -163,7 +176,7 @@ function simulate(policy: string, threshold: number, useJudge: boolean, depth: n
     rewriteWrong: rewriteWrong / rewrites,
     rewriteMiss: (rewrites - rewriteCorrect - rewriteWrong) / rewrites,
     relatedWrong: relatedWrong / rewrites,
-    judgeCallsPerQuery: calls / queries.length,
+    judgeCallsPerQuery: calls / usedQueries.length,
   };
 }
 
@@ -175,7 +188,7 @@ for (const t of judgeThresholds) {
 
 const latencies = [...verdicts.values()].map((v) => v.latencyMs);
 const invalid = [...verdicts.values()].filter((v) => !v.valid).length;
-const rank1Correct = queries.filter((q) => q.kind === 'rewrite' && q.top[0].id === q.itemId).length / (queries.length / 2);
+const rank1Correct = usedQueries.filter((q) => q.kind === 'rewrite' && q.top[0].id === q.itemId).length / usedPairs;
 
 // ---------- Report ----------
 const lines: string[] = [];
@@ -208,7 +221,7 @@ lines.push('');
 
 lines.push('## Part 2: whole cache', '');
 lines.push(
-  `All ${items.length} originals are stored. ${queries.length} queries (${sampleSize} rewrites and ${sampleSize} related ` +
+  `All ${items.length} originals are stored. ${usedQueries.length} queries (${usedPairs} rewrites and ${usedPairs} related ` +
     `questions, sampled with seed ${values.seed}) each search the entire cache for their top ${k} neighbors. ` +
     `The rewrite's own original is the nearest neighbor in **${pct(rank1Correct)}** of cases.`,
   '',
@@ -256,7 +269,10 @@ lines.push(
 lines.push('## Caveats', '');
 lines.push('- The related questions were written on purpose to share keywords with the original: they are realistic in wording, not in frequency.');
 lines.push('- Rewrites may change details the doctor judged irrelevant (for example, an age). A strict judge can call those "different", which lowers savings but not safety.');
-lines.push(`- ${sampleSize} sampled queries per kind: at ${pct(1 / sampleSize)} per query, small rates are noisy.`);
+lines.push(`- ${usedPairs} sampled queries per kind: at ${pct(1 / usedPairs)} per query, small rates are noisy.`);
+if (usedPairs < sampleSize) {
+  lines.push(`- The time budget stopped judging after ${usedPairs} of the ${sampleSize} planned pairs; rerunning the workflow resumes from the cached verdicts.`);
+}
 lines.push('');
 
 const outDir = join(values.out!, 'mqp');
