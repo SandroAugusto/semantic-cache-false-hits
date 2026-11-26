@@ -19,13 +19,23 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 58
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      # Embeddings and judge verdicts carry over between runs, so an interrupted run resumes.
+      - name: Restore embedding and judge caches
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            results/.embeddings-cache.json
+            results/.judge-cache.json
+          key: track-a-caches-${{ github.run_id }}
+          restore-keys: track-a-caches-
 
       - name: Install Ollama
         run: curl -fsSL https://ollama.com/install.sh | sh
@@ -39,7 +49,17 @@ jobs:
 
       - run: npm ci
       - run: npm test
-      - run: npm run track-a
+      - run: npm run track-a -- --time-budget 32
+        timeout-minutes: 45
+
+      - name: Save embedding and judge caches
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            results/.embeddings-cache.json
+            results/.judge-cache.json
+          key: track-a-caches-${{ github.run_id }}
 
       - uses: actions/upload-artifact@v4
         with:
