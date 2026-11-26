@@ -60,6 +60,22 @@ test('sweep: exact thresholds from 0.50 to 0.99, no floating-point drift', () =>
   assert.ok(rows.some((r) => r.threshold === 0.75));
 });
 
+test('sweep: steps that are not 1/n land on exact multiples of the step', async () => {
+  const { thresholdGrid } = await import('../src/metrics.ts');
+  assert.deepEqual(thresholdGrid(0.5, 0.65, 0.03), [0.5, 0.53, 0.56, 0.59, 0.62, 0.65]);
+  assert.deepEqual(thresholdGrid(0.5, 0.6, 0.04), [0.5, 0.54, 0.58]); // 0.62 would pass "to"
+  assert.deepEqual(thresholdGrid(0.7, 0.7, 0.01), [0.7]);
+  assert.deepEqual(sweepThresholds(sample, 0.5, 0.65, 0.03).map((r) => r.threshold), [0.5, 0.53, 0.56, 0.59, 0.62, 0.65]);
+});
+
+test('sweep: rejects invalid grids', async () => {
+  const { thresholdGrid } = await import('../src/metrics.ts');
+  assert.throws(() => thresholdGrid(0.5, 0.9, 0));
+  assert.throws(() => thresholdGrid(0.5, 0.9, -0.1));
+  assert.throws(() => thresholdGrid(0.9, 0.5, 0.01));
+  assert.throws(() => thresholdGrid(0.5, Number.NaN, 0.01));
+});
+
 test('safe threshold: sits above the worst hard negative and ignores unrelated pairs', () => {
   const safe = safeThreshold(sample)!;
   assert.equal(safe.threshold, 0.951);

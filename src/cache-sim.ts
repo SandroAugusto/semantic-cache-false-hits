@@ -16,6 +16,7 @@ import { type Verdict, OllamaJudge } from './judge.ts';
 import { cosineSimilarity, percentile } from './metrics.ts';
 import { MQP_URL, loadMqp, seededShuffle } from './mqp.ts';
 import { PROMPTS } from './prompts.ts';
+import { type CacheCounts, type CacheQuery, type LegacyRates, legacyRates, simulateCache } from './whole-cache.ts';
 
 const { values } = parseArgs({
   options: {
@@ -39,11 +40,26 @@ const { values } = parseArgs({
   },
 });
 
-const list = (value: string) => value.split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n));
-const sampleSize = Number(values.sample);
-const k = Number(values.k);
-const thresholds = list(values.thresholds!).sort((a, b) => a - b);
-const judgeThresholds = list(values['judge-thresholds']!).sort((a, b) => a - b);
+function positiveInteger(name: string, value: string): number {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`--${name} must be a positive integer, got "${value}"`);
+  return n;
+}
+function thresholdList(name: string, value: string): number[] {
+  const parsed = value.split(',').map((s) => s.trim()).filter((s) => s !== '');
+  const numbers = parsed.map(Number);
+  const bad = parsed.filter((_, i) => !Number.isFinite(numbers[i]) || numbers[i] < -1 || numbers[i] > 1);
+  if (bad.length > 0 || numbers.length === 0) {
+    throw new Error(`--${name} must be a comma-separated list of numbers in [-1, 1], got "${value}"`);
+  }
+  return [...new Set(numbers)].sort((a, b) => a - b);
+}
+const sampleSize = positiveInteger('sample', values.sample!);
+const k = positiveInteger('k', values.k!);
+const seed = Number(values.seed);
+if (!Number.isInteger(seed)) throw new Error(`--seed must be an integer, got "${values.seed}"`);
+const thresholds = thresholdList('thresholds', values.thresholds!);
+const judgeThresholds = thresholdList('judge-thresholds', values['judge-thresholds']!);
 if (!PROMPTS[values.prompt!]) throw new Error(`Unknown prompt "${values.prompt}"`);
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
@@ -81,14 +97,11 @@ const onePercent = percentile(negSims, 99);
 const inverted = items.filter((_, i) => negSims[i] >= posSims[i]).length / items.length;
 
 // ---------- Part 2: whole cache ----------
-interface Query {
-  itemId: number;
-  kind: 'rewrite' | 'related';
+interface Query extends CacheQuery {
   text: string;
-  top: { id: number; similarity: number }[];
 }
 
-const sampled = seededShuffle(items.map((i) => i.id), Number(values.seed)).slice(0, sampleSize);
+const sampled = seededShuffle(items.map((i) => i.id), seed).slice(0, sampleSize);
 const queries: Query[] = [];
 for (const id of sampled) {
   for (const kind of ['rewrite', 'related'] as const) {
@@ -142,44 +155,30 @@ const usedQueries = queries.slice(0, done);
 const usedPairs = usedQueries.length / 2;
 if (usedPairs === 0) throw new Error('No queries were judged within the time budget.');
 
-interface Outcome {
+interface Outcome extends LegacyRates {
   policy: string;
   threshold: number;
-  rewriteCorrect: number;
-  rewriteWrong: number;
-  rewriteMiss: number;
-  relatedWrong: number;
-  judgeCallsPerQuery: number;
+  counts: CacheCounts;
 }
 
+const verdictOf = (q: CacheQuery, candidateId: number): boolean => {
+  const verdict = verdicts.get(`${q.kind}:${q.itemId}:${candidateId}`);
+  if (!verdict) throw new Error(`No judge verdict for ${q.kind} ${q.itemId} vs. cached ${candidateId}`);
+  return verdict.same;
+};
+
+// Hits on an original other than the query's own, across all policies: the set MQP leaves unlabeled.
+const unlabeled = new Map<string, { kind: string; itemId: number; servedId: number; similarity: number; policies: string[] }>();
+
 function simulate(policy: string, threshold: number, useJudge: boolean, depth: number): Outcome {
-  let rewriteCorrect = 0;
-  let rewriteWrong = 0;
-  let relatedWrong = 0;
-  let calls = 0;
-  for (const q of usedQueries) {
-    let served: number | null = null;
-    for (const c of q.top.slice(0, depth)) {
-      if (c.similarity < threshold) break; // Sorted: nothing further down passes either.
-      if (!useJudge) { served = c.id; break; }
-      calls++;
-      if (verdicts.get(`${q.kind}:${q.itemId}:${c.id}`)!.same) { served = c.id; break; }
-    }
-    if (served === null) continue;
-    if (q.kind === 'related') relatedWrong++;
-    else if (served === q.itemId) rewriteCorrect++;
-    else rewriteWrong++;
+  const { counts, otherHits } = simulateCache(usedQueries, { threshold, depth, judge: useJudge ? verdictOf : undefined });
+  for (const h of otherHits) {
+    const key = `${h.kind}:${h.itemId}:${h.servedId}`;
+    const entry = unlabeled.get(key) ?? { ...h, policies: [] };
+    entry.policies.push(`${policy} @ ${threshold.toFixed(2)}`);
+    unlabeled.set(key, entry);
   }
-  const rewrites = usedPairs;
-  return {
-    policy,
-    threshold,
-    rewriteCorrect: rewriteCorrect / rewrites,
-    rewriteWrong: rewriteWrong / rewrites,
-    rewriteMiss: (rewrites - rewriteCorrect - rewriteWrong) / rewrites,
-    relatedWrong: relatedWrong / rewrites,
-    judgeCallsPerQuery: calls / usedQueries.length,
-  };
+  return { policy, threshold, counts, ...legacyRates(counts) };
 }
 
 const outcomes: Outcome[] = thresholds.map((t) => simulate('threshold only (top-1)', t, false, 1));
@@ -224,7 +223,7 @@ lines.push('');
 lines.push('## Part 2: whole cache', '');
 lines.push(
   `All ${items.length} originals are stored. ${usedQueries.length} queries (${usedPairs} rewrites and ${usedPairs} related ` +
-    `questions, sampled with seed ${values.seed}) each search the entire cache for their top ${k} neighbors. ` +
+    `questions, sampled with seed ${seed}) each search the entire cache for their top ${k} neighbors. ` +
     `The rewrite's own original is the nearest neighbor in **${pct(rank1Correct)}** of cases.`,
   '',
 );
@@ -261,6 +260,28 @@ for (const o of outcomes.filter((o) => [0.6, 0.7, 0.8, 0.85].some((t) => Math.ab
 }
 lines.push('');
 
+lines.push('## Hits on a different original', '');
+lines.push(
+  'MQP labels each query only against its own original. When the cache serves a *different* original, the dataset does ' +
+    'not say whether that answer would be right, yet the tables above count it as wrong. This table shows how many ' +
+    'of the counted wrong answers are such unlabeled hits; the rest are labeled wrong by MQP.',
+  '',
+);
+lines.push(
+  '| Policy | Threshold | Rewrites: other original | Related: own original (labeled wrong) | Related: other original |',
+  '|---|---:|---:|---:|---:|',
+);
+for (const o of outcomes) {
+  const c = o.counts;
+  lines.push(`| ${o.policy} | ${o.threshold.toFixed(2)} | ${c.rewriteOther} / ${c.rewrites} | ${c.relatedOwn} / ${c.related} | ${c.relatedOther} / ${c.related} |`);
+}
+lines.push(
+  '',
+  `${unlabeled.size} distinct (query, served original) pairs need a label across all policies. Until they are labeled, ` +
+    '"wrong answer" rates above are an upper bound for rewrites and for related questions alike.',
+  '',
+);
+
 lines.push('## Judge cost', '');
 lines.push(
   `${verdicts.size} judge calls, ${invalid} invalid replies. Latency on this runner: mean ${Math.round(mean(latencies))} ms, ` +
@@ -271,6 +292,8 @@ lines.push(
 lines.push('## Caveats', '');
 lines.push('- The related questions were written on purpose to share keywords with the original: they are realistic in wording, not in frequency.');
 lines.push('- Rewrites may change details the doctor judged irrelevant (for example, an age). A strict judge can call those "different", which lowers savings but not safety.');
+lines.push('- Hits on a different original count as wrong in the main tables, although MQP does not label them (see above).');
+lines.push('- The judge compares two questions, never the stored answer: it measures shared intent, not whether a concrete answer applies.');
 lines.push(`- ${usedPairs} sampled queries per kind: at ${pct(1 / usedPairs)} per query, small rates are noisy.`);
 if (usedPairs < sampleSize) {
   lines.push(`- The time budget stopped judging after ${usedPairs} of the ${sampleSize} planned pairs; rerunning the workflow resumes from the cached verdicts.`);
@@ -295,5 +318,28 @@ await writeFile(
     ),
   ].join('\n') + '\n',
 );
+// Question texts come from MQP, which has no license, so this file stays out of git (see .gitignore).
+const annotationPath = join(values.out!, '.annotation', `${values['report-dir']}-unlabeled-hits.csv`);
+const quote = (text: string) => `"${text.replace(/"/g, '""')}"`;
+await mkdir(join(values.out!, '.annotation'), { recursive: true });
+await writeFile(
+  annotationPath,
+  [
+    'kind,item_id,served_id,similarity,query,served_original,policies,label',
+    ...[...unlabeled.values()].map((h) =>
+      [
+        h.kind,
+        h.itemId,
+        h.servedId,
+        h.similarity.toFixed(4),
+        quote(h.kind === 'rewrite' ? items[h.itemId].positive : items[h.itemId].negative),
+        quote(items[h.servedId].original),
+        quote(h.policies.join('; ')),
+        '', // To fill by hand: same / different / unknown.
+      ].join(','),
+    ),
+  ].join('\n') + '\n',
+);
 console.log(lines.join('\n'));
 console.log(`Files written to ${outDir}/`);
+console.log(`Unlabeled hits for annotation (not committed): ${annotationPath}`);
