@@ -278,7 +278,8 @@ for (const o of outcomes) {
 lines.push(
   '',
   `${unlabeled.size} distinct (query, served original) pairs need a label across all policies. Until they are labeled, ` +
-    '"wrong answer" rates above are an upper bound for rewrites and for related questions alike.',
+    '"wrong answer" rates above are an upper bound for rewrites and for related questions alike, and the share of ' +
+    'rewrites answered correctly is a lower bound: a hit on another original may be right.',
   '',
 );
 
