@@ -14,8 +14,10 @@ on:
         description: Folder under results/ for the report
         default: mqp
 
+# Read-only by default. Only the `commit` job, which runs no downloaded code,
+# gets a token that can push.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: track-a
@@ -31,6 +33,16 @@ jobs:
       REPORT_DIR: ${{ inputs.report_dir }}
     timeout-minutes: 58
     steps:
+      # report_dir becomes a path (results/<report_dir>/) for the report writer and
+      # for `git add`; it must be a single folder name. The others reach commands as
+      # arguments and must not look like options.
+      - name: Validate inputs
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$REPORT_DIR" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "report_dir must be a single folder name (letters, digits, . _ -)"
+          [[ "$JUDGE" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]] || fail "judge is not a valid Ollama model name"
+          [[ "$TOP_K" =~ ^[1-9][0-9]*$ ]] || fail "k must be a positive integer"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -76,6 +88,26 @@ jobs:
           name: track-a-results
           path: results/${{ inputs.report_dir }}/
           retention-days: 7
+
+  # Separate job: the Ollama installer and the models above run with a read-only
+  # token; this one has the write token and executes nothing but git.
+  commit:
+    name: Commit results
+    needs: run
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      JUDGE: ${{ inputs.judge }}
+      REPORT_DIR: ${{ inputs.report_dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: track-a-results
+          path: results/${{ inputs.report_dir }}
 
       - name: Commit results
         run: |

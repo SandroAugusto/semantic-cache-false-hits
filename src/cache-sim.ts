@@ -61,6 +61,10 @@ if (!Number.isInteger(seed)) throw new Error(`--seed must be an integer, got "${
 const thresholds = thresholdList('thresholds', values.thresholds!);
 const judgeThresholds = thresholdList('judge-thresholds', values['judge-thresholds']!);
 if (!PROMPTS[values.prompt!]) throw new Error(`Unknown prompt "${values.prompt}"`);
+// The report folder is joined to --out and, in CI, passed to `git add`: one folder name, no path.
+if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(values['report-dir']!)) {
+  throw new Error(`--report-dir must be a single folder name (letters, digits, ".", "_", "-"), got "${values['report-dir']}"`);
+}
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const num = (v: number) => v.toFixed(3);
