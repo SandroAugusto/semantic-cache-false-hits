@@ -12,7 +12,7 @@ import { parseArgs } from 'node:util';
 import { loadPairs } from './dataset.ts';
 import { OllamaEmbedder } from './embed.ts';
 import { type Verdict, OllamaJudge } from './judge.ts';
-import { cosineSimilarity, evaluatePolicy, evaluateThreshold, percentile } from './metrics.ts';
+import { cosineSimilarity, evaluatePolicy, evaluateThreshold, judgeLoad, percentile } from './metrics.ts';
 import { shortDigest } from './ollama-models.ts';
 import { PROMPTS } from './prompts.ts';
 import { CATEGORIES, type ScoredPair, type ThresholdRow } from './types.ts';
@@ -135,7 +135,9 @@ lines.push('');
 // 2. Threshold + judge vs. threshold alone.
 lines.push('## Threshold alone vs. threshold + judge', '');
 lines.push(
-  '"Judge calls" is the share of pairs whose similarity reaches the threshold, i.e. how often the judge would run.',
+  '"Pairs judged" is the share of pairs whose similarity reaches the threshold, i.e. how often the judge would run. ' +
+    '"Judge calls per pair" is the inference volume: the same share for a policy that asks once, twice that for ' +
+    'a both-orders policy, which asks the judge twice about every candidate.',
   '',
 );
 lines.push(
@@ -146,13 +148,16 @@ lines.push(
   '',
 );
 lines.push(
-  '| Policy | Threshold | Paraphrases reused | Hard negatives accepted | Unrelated accepted | Precision | Judge calls | Break-even generation |',
-  '|---|---:|---:|---:|---:|---:|---:|---:|',
+  '| Policy | Threshold | Paraphrases reused | Hard negatives accepted | Unrelated accepted | Precision | Pairs judged | Judge calls per pair | Break-even generation |',
+  '|---|---:|---:|---:|---:|---:|---:|---:|---:|',
 );
 
 interface PipelineRow extends ThresholdRow {
   policy: string;
+  /** Share of pairs sent to the judge (similarity >= threshold); 0 without a judge. */
   judgeCallRate: number;
+  /** Judge calls per pair evaluated: judgeCallRate times the calls per candidate (2 for both orders). */
+  judgeCallsPerPair: number;
   /** Mean judge latency / share of judge calls that end in a hit, in ms; null without judge or hits. */
   breakEvenMs: number | null;
 }
@@ -162,17 +167,18 @@ const meanLatency = (verdicts: Iterable<Verdict>) => {
 };
 const pipelineRows: PipelineRow[] = [];
 for (const threshold of thresholds) {
-  const candidates = scored.filter((p) => p.similarity >= threshold).length / scored.length;
   pipelineRows.push({
     ...evaluateThreshold(scored, threshold),
     policy: 'threshold only',
     judgeCallRate: 0,
+    judgeCallsPerPair: 0,
     breakEvenMs: null,
   });
   const candidateCount = scored.filter((p) => p.similarity >= threshold).length;
   for (const run of runs) {
-    const policies: [string, (p: ScoredPair) => boolean, number][] = [
-      [run.name, (p) => run.verdicts.get(p.id)!.same, meanLatency(run.verdicts.values())],
+    // Policy name, verdict, mean judge latency per candidate, judge calls per candidate.
+    const policies: [string, (p: ScoredPair) => boolean, number, number][] = [
+      [run.name, (p) => run.verdicts.get(p.id)!.same, meanLatency(run.verdicts.values()), 1],
     ];
     if (bothOrders) {
       // Both orders must say "same": two calls per candidate.
@@ -180,15 +186,18 @@ for (const threshold of thresholds) {
         `${run.name}, both orders`,
         (p) => run.verdicts.get(p.id)!.same && run.reversed.get(p.id)!.same,
         meanLatency(run.verdicts.values()) + meanLatency(run.reversed.values()),
+        2,
       ]);
     }
-    for (const [policy, says, latencyMs] of policies) {
+    for (const [policy, says, latencyMs, callsPerCandidate] of policies) {
       const isHit = (p: ScoredPair) => p.similarity >= threshold && says(p);
       const hits = scored.filter(isHit).length;
+      const load = judgeLoad(scored, threshold, callsPerCandidate);
       pipelineRows.push({
         ...evaluatePolicy(scored, isHit, threshold),
         policy,
-        judgeCallRate: candidates,
+        judgeCallRate: load.candidateRate,
+        judgeCallsPerPair: load.callsPerPair,
         breakEvenMs: hits === 0 ? null : latencyMs / (hits / candidateCount),
       });
     }
@@ -199,6 +208,7 @@ for (const row of pipelineRows) {
     `| ${row.policy} | ${row.threshold.toFixed(2)} | ${pct(row.hitRate)} | ${pct(row.hardNegativeFalseHitRate)} | ` +
       `${pct(row.falseHitRateByCategory.unrelated ?? 0)} | ${pct(row.precision)} | ` +
       `${row.policy === 'threshold only' ? '-' : pct(row.judgeCallRate)} | ` +
+      `${row.policy === 'threshold only' ? '-' : row.judgeCallsPerPair.toFixed(2)} | ` +
       `${row.breakEvenMs === null ? '-' : ms(row.breakEvenMs)} |`,
   );
 }
@@ -253,10 +263,10 @@ for (const run of runs) {
 }
 await writeFile(join(outDir, 'judgments.csv'), judgmentsCsv.join('\n') + '\n');
 
-const pipelineCsv = ['policy,threshold,hit_rate,hard_negative_false_hit_rate,false_hit_rate,precision,judge_call_rate,break_even_ms'];
+const pipelineCsv = ['policy,threshold,hit_rate,hard_negative_false_hit_rate,false_hit_rate,precision,judge_call_rate,break_even_ms,judge_calls_per_pair'];
 for (const r of pipelineRows) {
   pipelineCsv.push(
-    [csvEscape(r.policy), r.threshold.toFixed(2), r.hitRate.toFixed(4), r.hardNegativeFalseHitRate.toFixed(4), r.falseHitRate.toFixed(4), r.precision.toFixed(4), r.judgeCallRate.toFixed(4), r.breakEvenMs === null ? '' : r.breakEvenMs.toFixed(0)].join(','),
+    [csvEscape(r.policy), r.threshold.toFixed(2), r.hitRate.toFixed(4), r.hardNegativeFalseHitRate.toFixed(4), r.falseHitRate.toFixed(4), r.precision.toFixed(4), r.judgeCallRate.toFixed(4), r.breakEvenMs === null ? '' : r.breakEvenMs.toFixed(0), r.judgeCallsPerPair.toFixed(4)].join(','),
   );
 }
 await writeFile(join(outDir, 'pipeline.csv'), pipelineCsv.join('\n') + '\n');

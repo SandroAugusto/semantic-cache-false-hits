@@ -102,3 +102,15 @@ test('percentile: nearest rank', async () => {
   assert.equal(percentile([5, 1, 3, 2, 4], 95), 5);
   assert.equal(percentile([7], 95), 7);
 });
+
+test('judge load: a both-orders policy makes twice the calls for the same candidates', async () => {
+  const { judgeLoad } = await import('../src/metrics.ts');
+  const pairs = [pair('p1', 'paraphrase', 0.9), pair('p2', 'paraphrase', 0.7), pair('h1', 'negation', 0.8), pair('u1', 'unrelated', 0.2)];
+  // At 0.75, p1 and h1 reach the threshold: 2 of 4 pairs go to the judge.
+  assert.deepEqual(judgeLoad(pairs, 0.75, 1), { candidateRate: 0.5, callsPerPair: 0.5 });
+  assert.deepEqual(judgeLoad(pairs, 0.75, 2), { candidateRate: 0.5, callsPerPair: 1 });
+  // The threshold is inclusive, as for hits.
+  assert.equal(judgeLoad(pairs, 0.8, 1).candidateRate, 0.5);
+  assert.deepEqual(judgeLoad([], 0.75, 2), { candidateRate: 0, callsPerPair: 0 });
+  assert.throws(() => judgeLoad(pairs, 0.75, 0));
+});
