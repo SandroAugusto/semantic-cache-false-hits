@@ -7,8 +7,10 @@ on:
     paths:
       - 'data/pairs.jsonl'
 
+# Read-only by default. Only the `commit` job, which runs no downloaded code,
+# gets a token that can push.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: run-experiment
@@ -43,11 +45,30 @@ jobs:
       - run: npm run verify
       - run: npm run chart
 
+      # Hidden files included: results/.judge-cache.json is tracked and reused by later runs.
       - uses: actions/upload-artifact@v4
         with:
           name: results
           path: results/
+          include-hidden-files: true
           retention-days: 7
+
+  # Separate job: the Ollama installer and the models above run with a read-only
+  # token; this one has the write token and executes nothing but git.
+  commit:
+    name: Commit results
+    needs: run
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: results
+          path: results
 
       - name: Commit results
         run: |
