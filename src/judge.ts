@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { modelDigest } from './ollama-models.ts';
 
 export interface Verdict {
   /** The judge's answer; false when the reply could not be parsed (conservative: no cache hit). */
@@ -34,6 +35,8 @@ export class OllamaJudge {
   private readonly options: JudgeOptions;
   private cache: Record<string, Verdict> | undefined;
   private warmedUp = false;
+  /** Digest of the model's weights, resolved on first use; part of every cache key. */
+  digest: string | undefined;
 
   constructor(options: JudgeOptions) {
     this.options = options;
@@ -42,8 +45,9 @@ export class OllamaJudge {
 
   async judge(a: string, b: string): Promise<Verdict> {
     const cache = await this.loadCache();
+    const digest = (this.digest ??= await modelDigest(this.options.host, this.options.model));
     const key = createHash('sha256')
-      .update([this.options.model, this.options.systemPrompt, a, b].join('\u0000'))
+      .update([this.options.model, digest, this.options.systemPrompt, a, b].join('\u0000'))
       .digest('hex');
     if (cache[key]) return cache[key];
 

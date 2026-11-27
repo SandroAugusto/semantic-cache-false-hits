@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadPairs } from './dataset.ts';
 import { OllamaEmbedder } from './embed.ts';
+import { shortDigest } from './ollama-models.ts';
 import { cosineSimilarity, safeThreshold, statsByCategory, sweepThresholds } from './metrics.ts';
 import { renderMarkdown, renderPairsCsv, renderSweepCsv } from './report.ts';
 import type { ScoredPair } from './types.ts';
@@ -42,7 +43,7 @@ const scored: ScoredPair[] = pairs.map((pair, i) => ({
 
 const rows = sweepThresholds(scored);
 const report = renderMarkdown({
-  embedderName: embedder.name,
+  embedderName: `${embedder.name} | weights: ${shortDigest(embedder.digest ?? '')}`,
   pairs: scored,
   rows,
   stats: statsByCategory(scored),

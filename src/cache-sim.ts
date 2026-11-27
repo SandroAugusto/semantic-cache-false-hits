@@ -8,6 +8,7 @@
  * (should hit their own original) and the related questions (should miss). Each query retrieves
  * its top-k neighbors from the entire cache, so a wrong neighbor can win, as in production.
  */
+import { shortDigest } from './ollama-models.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -201,7 +202,11 @@ lines.push(
     'so this report shows aggregates only.',
   '',
 );
-lines.push(`Embeddings: ${embedder.name}. Judge: ${judge.name}.`, '');
+lines.push(
+  `Embeddings: ${embedder.name}. Judge: ${judge.name}. ` +
+    `Weights (Ollama digests): ${shortDigest(embedder.digest ?? '')}, ${shortDigest(judge.digest ?? '')}.`,
+  '',
+);
 
 lines.push('## Part 1: pairs', '');
 lines.push(`- Mean similarity, original vs. rewrite: **${num(mean(posSims))}**`);

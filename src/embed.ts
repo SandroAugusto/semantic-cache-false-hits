@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { modelDigest } from './ollama-models.ts';
 
 export interface Embedder {
   /** Identifies the configuration (model + prefix) in reports and in the on-disk cache. */
@@ -24,6 +25,8 @@ export class OllamaEmbedder implements Embedder {
   readonly name: string;
   private readonly options: OllamaOptions;
   private cache: Record<string, number[]> | undefined;
+  /** Digest of the model's weights, resolved on first use; part of every cache key. */
+  digest: string | undefined;
 
   constructor(options: OllamaOptions) {
     this.options = options;
@@ -32,8 +35,11 @@ export class OllamaEmbedder implements Embedder {
 
   async embed(texts: string[]): Promise<number[][]> {
     const cache = await this.loadCache();
+    const digest = (this.digest ??= await modelDigest(this.options.host, this.options.model));
     const keyOf = (text: string) =>
-      createHash('sha256').update(`${this.options.model}\u0000${this.options.prefix}\u0000${text}`).digest('hex');
+      createHash('sha256')
+        .update(`${this.options.model}\u0000${digest}\u0000${this.options.prefix}\u0000${text}`)
+        .digest('hex');
 
     const missing = [...new Set(texts.filter((text) => !cache[keyOf(text)]))];
     if (missing.length > 0) {
