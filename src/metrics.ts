@@ -59,14 +59,21 @@ export function evaluateThreshold(pairs: ScoredPair[], threshold: number): Thres
   return evaluatePolicy(pairs, (p) => p.similarity >= threshold, threshold);
 }
 
+/** Thresholds from, from + step, ... up to `to` (included when the grid lands on it). */
+export function thresholdGrid(from: number, to: number, step: number): number[] {
+  if (![from, to, step].every(Number.isFinite)) throw new Error('Threshold grid needs finite numbers');
+  if (step <= 0) throw new Error(`Step must be positive, got ${step}`);
+  if (from > to) throw new Error(`"from" (${from}) is greater than "to" (${to})`);
+  // Count steps with an integer index and round each point, so 0.03 steps give 0.53, 0.56, ...
+  // instead of accumulating floating-point error (0.1 + 0.2 ...) or snapping to 1/round(1/step).
+  const count = Math.floor((to - from) / step + 1e-9);
+  const points: number[] = [];
+  for (let i = 0; i <= count; i++) points.push(Math.round((from + i * step) * 1e9) / 1e9);
+  return points;
+}
+
 export function sweepThresholds(pairs: ScoredPair[], from = 0.5, to = 0.99, step = 0.01): ThresholdRow[] {
-  const rows: ThresholdRow[] = [];
-  // Integer steps avoid accumulated floating-point error (0.1 + 0.2 ...).
-  const scale = Math.round(1 / step);
-  for (let i = Math.round(from * scale); i <= Math.round(to * scale); i++) {
-    rows.push(evaluateThreshold(pairs, i / scale));
-  }
-  return rows;
+  return thresholdGrid(from, to, step).map((t) => evaluateThreshold(pairs, t));
 }
 
 export interface SafeThreshold {
