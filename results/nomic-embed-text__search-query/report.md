@@ -1,4 +1,4 @@
-# Results: nomic-embed-text | prefix: "search_query: "
+# Results: nomic-embed-text | prefix: "search_query: " | weights: 0a109f422b47
 
 Pairs evaluated: 56. Cache hit = similarity >= threshold.
 

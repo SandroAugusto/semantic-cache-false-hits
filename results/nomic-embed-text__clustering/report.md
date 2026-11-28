@@ -1,4 +1,4 @@
-# Results: nomic-embed-text | prefix: "clustering: "
+# Results: nomic-embed-text | prefix: "clustering: " | weights: 0a109f422b47
 
 Pairs evaluated: 56. Cache hit = similarity >= threshold.
 
