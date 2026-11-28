@@ -4,6 +4,8 @@
 
 - **A similarity threshold alone is not a safety mechanism.** On real patient questions, keeping wrong answers to 1% of related-but-different questions takes a threshold (0.907, with nomic-embed-text) that reuses only 29.5% of true rewrites.
 - **A small LLM judge does not escape the trade-off.** On real questions it moves along it, adding seconds per query on CPU; on hand-written pairs it looked far better than it is.
+- **Neither does a model trained for the task, as tested.** A cross-encoder trained on duplicate questions reused fewer real rewrites than the cosine threshold at the same share of wrong acceptances.
+- **It is not one embedding model.** Three models, one of them multilingual, all rank the hard negatives above the paraphrases.
 - **If you run a semantic cache anyway,** pick the threshold from your own traffic's mix of rewrites and near-misses, not from a benchmark, and measure the wrong-answer rate it implies (table in Track A).
 
 A semantic cache reuses the answer to a previous question when a new question is similar enough, measured by the cosine similarity between their embeddings. The upside is real: no model call at all. So is the risk: confidently returning the answer to a **different** question.
@@ -128,11 +130,15 @@ All runs below come from the GitHub Actions workflow in this repository (`ubuntu
 
 Hard negatives turned out to be **more** similar than real paraphrases. With no prefix, paraphrases average 0.737 cosine similarity, while every hard-negative category averages between 0.81 and 0.97. Raising the threshold removes paraphrases before it removes wrong answers:
 
-| Embedding config | Paraphrases reused at 0.75 | Hard negatives accepted at 0.75 | Safe threshold | Paraphrases reused at the safe threshold |
+| Embedding model and prefix | Paraphrases reused at 0.75 | Hard negatives accepted at 0.75 | Safe threshold | Paraphrases reused at the safe threshold |
 |---|---:|---:|---:|---:|
-| no prefix | 56% | 100% | 0.994 | 0% |
-| `search_query: ` | 67% | 100% | 0.996 | 0% |
-| `clustering: ` | 94% | 100% | 0.998 | 0% |
+| `nomic-embed-text`, no prefix | 56% | 100% | 0.994 | 0% |
+| `nomic-embed-text`, `search_query: ` | 67% | 100% | 0.996 | 0% |
+| `nomic-embed-text`, `clustering: ` | 94% | 100% | 0.998 | 0% |
+| `mxbai-embed-large` | 50% | 93% | 0.992 | 0% |
+| `bge-m3` (multilingual) | 67% | 90% | 0.992 | 0% |
+
+This is not a property of one model. With `mxbai-embed-large`, paraphrases average 0.744 and the hard-negative categories 0.761 to 0.961; with `bge-m3`, 0.775 against 0.808 to 0.968. In all three models every hard-negative category averages higher than the paraphrases, and the safe threshold reuses nothing.
 
 The worst offenders are role swaps ("Does the sponsor pay the participant?" vs. "Does the participant pay the sponsor?" scores 0.993) and negations. No threshold separates them from paraphrases, so this is not a calibration problem.
 
@@ -147,10 +153,12 @@ At a permissive threshold of 0.60 (no prefix), out of 18 paraphrases and 30 hard
 | Policy | Paraphrases reused | Hard negatives accepted | Precision | Mean judge latency |
 |---|---:|---:|---:|---:|
 | threshold only | 100% | 100% | 38% | - |
-| + qwen2.5:3b (plain prompt) | 83% | 0% | 100% | 1.7 s |
-| + llama3.2:3b (plain prompt) | 0% | 0% | 100% | 1.7 s |
-| + qwen2.5:7b (plain prompt) | 100% | 3% (1 of 30) | 95% | 3.9 s |
-| + qwen2.5:7b (guided prompt) | 100% | 0% | 100% | 3.9 s |
+| + qwen2.5:3b (plain prompt) | 78% | 0% | 100% | 0.9 s |
+| + qwen2.5:3b (guided prompt) | 83% | 0% | 100% | 0.9 s |
+| + llama3.2:3b (plain prompt) | 0% | 0% | 100% | 0.9 s |
+| + qwen2.5:7b (plain prompt) | 100% | 3% (1 of 30) | 95% | 1.9 s |
+| + qwen2.5:7b (plain prompt), both orders | 100% | 0% | 100% | 3.7 s (two calls) |
+| + qwen2.5:7b (guided prompt) | 100% | 0% | 100% | 1.9 s |
 
 What this shows:
 
@@ -158,12 +166,14 @@ What this shows:
 - **Safety alone is not enough to judge a judge.** llama3.2:3b answered "different" to every pair: zero wrong answers, zero savings. Any evaluation must report both sides.
 - **The guided prompt barely matters.** It names this dataset's categories, so it could have inflated the scores; plain and guided results are nearly identical, which suggests the gain does not come from that leak.
 - **The smaller qwen's misses are debatable.** It rejected "Who pays for transportation costs?" vs. "Are travel expenses reimbursed?", which arguably are different questions. The labels are human judgment, not ground truth.
+- **Order matters a little.** Every pair was judged as A then B and as B then A. qwen2.5:3b answered differently for 4 of the 56 pairs (3 with the guided prompt), all of them paraphrases. qwen2.5:7b flipped on 1 pair with the plain prompt, and that pair is its one miss: requiring both orders to agree removes it, at twice the judge calls. With the guided prompt it flipped on none.
 
 What it costs and what it does not prove:
 
-- **The judge runs on most traffic.** At 0.60 it is called for 86% of pairs. On these CPU runners each call took 1.7 to 3.9 s, which only pays off if the answer it saves is slower or more expensive than that. GPU latency should be much lower, but it was not measured here.
+- **The judge runs on most traffic.** At 0.60 it is called for 86% of pairs. A judge only saves time when the generation it replaces takes longer than the judge's latency divided by the share of its calls that end in a hit. At 0.60 that break-even is 2.9 to 3.0 s for qwen2.5:3b, 4.7 to 5.0 s for qwen2.5:7b, and 9.9 s for qwen2.5:7b in both orders. GPU latency should be much lower, but it was not measured here.
+- **Latency on free runners is not stable.** In this run a call took 0.9 s (3B models) to 1.9 s (7B). In the previous run of the same pairs, on the same kind of runner, it took 1.7 s and 3.9 s. The break-even times above move with it.
+- **One verdict changed between runs.** qwen2.5:3b with the plain prompt reused 83% of paraphrases in the previous run and 78% in this one: one more paraphrase rejected, at temperature 0. The earlier run did not record which weights it used, so a re-pointed model tag cannot be told apart from run-to-run variation; reports now state the weights' digests, so the next difference can be.
 - **Small samples.** 0 errors in 30 hard negatives still allows a true error rate of up to about 10% (95% confidence, rule of three).
-- **One order per pair.** Each pair was judged as A then B only; the judge may not be symmetric.
 - **The chart nudges overlapping markers sideways** so all of them stay visible; read exact values from the table.
 
 ### Track A: real patient questions against a whole cache
@@ -193,13 +203,33 @@ The 3B judge saves more than the 0.85 threshold but also serves more wrong answe
 
 **So Experiment 2 overstated the judge.** Hand-written, one-word hard negatives are easy for an LLM to spot; real near-misses are not. Two judges and one prompt were tested here, both small enough to run on free CPU runners; a frontier model may do better, at a much higher price per check.
 
+### Cross-encoder baseline
+
+The first objection to an LLM judge is a model trained for the task. `npm run rerank` scores the same pairs with `cross-encoder/quora-distilroberta-base`, trained on duplicate questions, and accepts a pair when its duplicate probability reaches a threshold (report in [`results/rerank/report.md`](results/rerank/report.md)).
+
+**On the hand-written pairs it is worse than every judge that works.** At 0.50 it reuses 17% of paraphrases (3 of 18) and still accepts 10% of hard negatives (3 of 30). Its two highest-scoring wrong pairs are role swaps, at 0.975 and 0.784. Even at 0.05 it reuses 39% of paraphrases while accepting 20% of hard negatives.
+
+**On real questions it does not beat the cosine threshold.** Pair level, all 1,524 MQP items:
+
+| Policy | Related questions accepted | Rewrites reused |
+|---|---:|---:|
+| cosine threshold 0.85 | 5.7% | 61.0% |
+| cross-encoder 0.50 | 5.7% | 49.9% |
+| cosine threshold 0.88 | 2.3% | 44.4% |
+| cross-encoder 0.95 | 2.2% | 31.6% |
+
+At the same share of wrong acceptances, the cross-encoder reuses fewer rewrites than the embedding threshold it was meant to improve on, and no threshold on its grid keeps related questions at or below 1%. It is cheap, about 46 ms per pair on CPU in batches of 16, against seconds for a judge.
+
+This is one cross-encoder, trained on Quora questions and used on medical ones, at pair level only: it was not run behind the whole-cache simulation of Track A. It says that "use a model trained for equivalence" is not an automatic fix, not that no such model would work.
+
 ## Next steps
 
-1. **Better judges, not bigger ones.** A cross-encoder trained on duplicate questions (`npm run rerank`, `cross-encoder/quora-distilroberta-base` by default) is in place; its results come from the `rerank.yml` run. Still open: a judge prompt that asks what each question needs to know before comparing.
+1. **A judge that reasons before comparing.** A prompt that asks what each question needs to know before deciding, and a cross-encoder trained on in-domain pairs: the general-purpose one tested here did not help.
 2. **Production traffic**, the only way to know how often related-but-different questions actually arrive.
-3. **Judge both orders.** `npm run verify` now judges every pair both ways (`--orders ab,ba`) and reports how many verdicts flip; results come with the next workflow run.
-4. **A cost model.** The verification report now gives, for each policy, the break-even generation time: the mean judge latency divided by the share of judge calls that end in a hit. Below it, calling the model directly is faster. Still open: GPU latency and prices per call.
-5. **More embedding models and languages.** `mxbai-embed-large` and `bge-m3` (multilingual) now run in the workflow; a commercial embedding model needs an API key and is not included.
+3. **Both orders on real questions.** Order symmetry was measured on the hand-written pairs only; Track A still judges one order.
+4. **A cost model with prices.** Break-even generation time is reported for CPU latency; GPU latency and prices per call are still open.
+5. **More languages.** `bge-m3` is multilingual, but the questions are in English. A commercial embedding model needs an API key and is not included.
+6. **Label the unlabeled hits.** Track A's wrong-answer rates stay an upper bound until the hits on a different original are labeled by hand.
 
 ## Context
 
