@@ -59,6 +59,25 @@ export function evaluateThreshold(pairs: ScoredPair[], threshold: number): Thres
   return evaluatePolicy(pairs, (p) => p.similarity >= threshold, threshold);
 }
 
+export interface JudgeLoad {
+  /** Share of pairs whose similarity reaches the threshold: the pairs sent to the judge. */
+  candidateRate: number;
+  /** Judge calls per pair evaluated: candidateRate times the calls each candidate takes. */
+  callsPerPair: number;
+}
+
+/**
+ * How much a threshold + judge policy uses the judge. A policy that asks the judge once per
+ * candidate makes `candidateRate` calls per pair; one that judges both orders makes twice that.
+ */
+export function judgeLoad(pairs: ScoredPair[], threshold: number, callsPerCandidate: number): JudgeLoad {
+  if (!Number.isInteger(callsPerCandidate) || callsPerCandidate < 1) {
+    throw new Error(`Calls per candidate must be a positive integer, got ${callsPerCandidate}`);
+  }
+  const candidateRate = fraction(pairs.filter((p) => p.similarity >= threshold).length, pairs.length);
+  return { candidateRate, callsPerPair: candidateRate * callsPerCandidate };
+}
+
 /** Thresholds from, from + step, ... up to `to` (included when the grid lands on it). */
 export function thresholdGrid(from: number, to: number, step: number): number[] {
   if (![from, to, step].every(Number.isFinite)) throw new Error('Threshold grid needs finite numbers');

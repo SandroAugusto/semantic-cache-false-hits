@@ -18,7 +18,8 @@ const { values } = parseArgs({
 
 const sweep = parseCsv(await readFile(join(values.out!, values.sweep!, 'sweep.csv'), 'utf8'));
 const pipeline = parseCsv(await readFile(join(values.out!, 'verification', 'pipeline.csv'), 'utf8')).filter(
-  (r) => r.threshold === values.threshold && r.policy !== 'threshold only',
+  // One marker per judge as first asked (A then B); the both-orders policies are in the report table.
+  (r) => r.threshold === values.threshold && r.policy !== 'threshold only' && !r.policy.endsWith(', both orders'),
 );
 
 // Geometry.

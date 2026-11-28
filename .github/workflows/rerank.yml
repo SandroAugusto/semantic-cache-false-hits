@@ -1,0 +1,82 @@
+name: Cross-encoder baseline
+
+# On demand. Downloads the cross-encoder from the Hugging Face Hub and the MQP dataset,
+# scores both datasets on CPU and commits results/rerank/.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Hugging Face model id of the cross-encoder
+        default: cross-encoder/quora-distilroberta-base
+      revision:
+        description: Model revision (branch, tag or commit) to pin
+        default: main
+
+# Read-only by default. Only the `commit` job, which runs no downloaded code,
+# gets a token that can push.
+permissions:
+  contents: read
+
+concurrency:
+  group: rerank
+  cancel-in-progress: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Inputs reach shell steps through env vars, never by direct interpolation into scripts.
+    env:
+      MODEL: ${{ inputs.model }}
+      REVISION: ${{ inputs.revision }}
+    steps:
+      # Both inputs reach the script as arguments and select what is downloaded
+      # from the Hugging Face Hub: an "owner/name" id and a branch, tag or commit.
+      - name: Validate inputs
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "model must be a Hugging Face id of the form owner/name"
+          [[ "$REVISION" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "revision must be a branch, tag or commit"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run rerank -- --model "$MODEL" --revision "$REVISION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rerank-results
+          path: results/rerank/
+          retention-days: 7
+
+  # Separate job: npm dependencies and the downloaded model above run with a
+  # read-only token; this one has the write token and executes nothing but git.
+  commit:
+    name: Commit results
+    needs: run
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rerank-results
+          path: results/rerank
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/rerank/
+          git diff --cached --quiet && exit 0
+          git commit -m "Update cross-encoder results [skip ci]"
+          git pull --rebase --autostash
+          git push

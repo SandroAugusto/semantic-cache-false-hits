@@ -1,5 +1,11 @@
 # Semantic cache false hits: when "similar" is not "the same"
 
+**In short:**
+
+- **A similarity threshold alone is not a safety mechanism.** On real patient questions, keeping wrong answers to 1% of related-but-different questions takes a threshold (0.907, with nomic-embed-text) that reuses only 29.5% of true rewrites.
+- **A small LLM judge does not escape the trade-off.** On real questions it moves along it, adding seconds per query on CPU; on hand-written pairs it looked far better than it is.
+- **If you run a semantic cache anyway,** pick the threshold from your own traffic's mix of rewrites and near-misses, not from a benchmark, and measure the wrong-answer rate it implies (table in Track A).
+
 A semantic cache reuses the answer to a previous question when a new question is similar enough, measured by the cosine similarity between their embeddings. The upside is real: no model call at all. So is the risk: confidently returning the answer to a **different** question.
 
 This experiment measures that risk. The hypothesis is that questions on the **same topic with a different meaning**, such as "inclusion criteria" and "exclusion criteria", sit as close together in embedding space as true paraphrases do. If that holds, no similarity threshold can safely tell them apart.
@@ -77,9 +83,24 @@ Track A (downloads the dataset at run time):
 npm run track-a    # options: --sample, --judge, --prompt, --judge-thresholds, --time-budget
 ```
 
+Cross-encoder baseline (no Ollama needed; downloads the model from the Hugging Face Hub and MQP at run time):
+
+```bash
+npm run rerank     # options: --model, --revision, --min-similarity, --local-dir; writes results/rerank/
+```
+
+More embedding models for Experiment 1:
+
+```bash
+ollama pull mxbai-embed-large && ollama pull bge-m3
+npm run models
+```
+
+Caches and reports identify models by the digest Ollama reports for their tag, not by the tag alone: a tag that is re-pointed to new weights never reuses old embeddings or verdicts, and every report says which weights ran.
+
 Besides the report, Track A writes `results/.annotation/<report-dir>-unlabeled-hits.csv`: every (query, served question) pair the dataset does not label, with an empty `label` column to fill by hand.
 
-Two GitHub Actions workflows run everything and commit the results: `run-experiment.yml` (Experiments 1 and 2, when `data/pairs.jsonl` changes) and `track-a.yml` (Track A, on demand).
+Three GitHub Actions workflows run everything and commit the results: `run-experiment.yml` (Experiments 1 and 2, when `data/pairs.jsonl` changes), `track-a.yml` (Track A, on demand) and `rerank.yml` (the cross-encoder baseline, on demand).
 
 ```bash
 npm test           # metric tests
@@ -174,11 +195,11 @@ The 3B judge saves more than the 0.85 threshold but also serves more wrong answe
 
 ## Next steps
 
-1. **Better judges, not bigger ones:** a reranker trained for question equivalence, or a judge prompt that asks what each question needs to know before comparing. The workflow keeps verdicts in the Actions cache and stops on a time budget, so slow runs can be split across several free runs.
+1. **Better judges, not bigger ones.** A cross-encoder trained on duplicate questions (`npm run rerank`, `cross-encoder/quora-distilroberta-base` by default) is in place; its results come from the `rerank.yml` run. Still open: a judge prompt that asks what each question needs to know before comparing.
 2. **Production traffic**, the only way to know how often related-but-different questions actually arrive.
-3. **Judge both orders** of each pair and measure symmetry.
-4. **A cost model:** judge latency and price against the generation it saves, on CPU and GPU.
-5. **More embedding models and languages**, including multilingual ones.
+3. **Judge both orders.** `npm run verify` now judges every pair both ways (`--orders ab,ba`) and reports how many verdicts flip; results come with the next workflow run.
+4. **A cost model.** The verification report now gives, for each policy, the break-even generation time: the mean judge latency divided by the share of judge calls that end in a hit. Below it, calling the model directly is faster. Still open: GPU latency and prices per call.
+5. **More embedding models and languages.** `mxbai-embed-large` and `bge-m3` (multilingual) now run in the workflow; a commercial embedding model needs an API key and is not included.
 
 ## Context
 

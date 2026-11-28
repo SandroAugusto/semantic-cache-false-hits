@@ -38,10 +38,13 @@ jobs:
           ollama pull qwen2.5:3b
           ollama pull llama3.2:3b
           ollama pull qwen2.5:7b
+          ollama pull mxbai-embed-large
+          ollama pull bge-m3
 
       - run: npm ci
       - run: npm test
       - run: npm run all
+      - run: npm run models
       - run: npm run verify
       - run: npm run chart
 

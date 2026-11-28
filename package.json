@@ -10,15 +10,20 @@
   "scripts": {
     "start": "node src/run.ts",
     "all": "node src/run.ts --prefix none && node src/run.ts --prefix \"search_query: \" && node src/run.ts --prefix \"clustering: \"",
+    "models": "node src/run.ts --model mxbai-embed-large && node src/run.ts --model bge-m3",
     "test": "node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc -p .",
     "verify": "node src/verify.ts",
     "chart": "node src/chart.ts",
-    "track-a": "node src/cache-sim.ts"
+    "track-a": "node src/cache-sim.ts",
+    "rerank": "node src/rerank.ts"
   },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.20.7",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2"
   }
 }
